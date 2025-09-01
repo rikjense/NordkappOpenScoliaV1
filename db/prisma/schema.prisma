@@ -1,71 +1,71 @@
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
-}
+// db/prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
 }
 
-model Board {
-  id              String   @id
-  name            String
-  status          String   @default("Ready") // Offline/Ready/Error/...
-  phase           String?  // Throw/Takeout
-  serialNumber    String?
-  accessTokenEnc  String?  // kryptert i DB
-  lastThrowSector String?
-  lastThrowAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
-model Event {
-  id        Int      @id @default(autoincrement())
-  boardId   String?
-  type      String
-  payload   String   // JSON som tekst
-  createdAt DateTime @default(now())
+model Board {
+  id             String   @id
+  name           String
+  serialNumber   String?
+  accessTokenEnc String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@index([boardId, createdAt])
+  matches Match[]
 }
 
 model Match {
-  id         String   @id @default(cuid())
-  boardId    String?
-  playerA    String
-  playerB    String
-  startScore Int
-  status     String   @default("Idle")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  boardId     String?
+  board       Board?   @relation(fields: [boardId], references: [id])
+  playerA     String
+  playerB     String
+  startScore  Int
+  status      String?
+  outMode     String?
+  legsMode    String?
+  legsTarget  Int?
+  scoreA      Int?
+  scoreB      Int?
+  currentTurn String?
+  legsWonA    Int?
+  legsWonB    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  legs   Leg[]
+  visits Visit[] // <-- motsatt side av Visit.match
 }
 
 model Leg {
-  id            String   @id @default(cuid())
-  matchId       String
-  number        Int
-  status        String   @default("Pending")       // Pending | InProgress | Finished
-  startedAt     DateTime?
-  finishedAt    DateTime?
-
-  // --- 4C: live state & statistikk (persisteres fortløpende) ---
-  currentPlayer String   @default("A")             // "A" | "B"
-  dartsInVisit  Int      @default(0)               // 0..3
-
-  remainingA    Int      @default(0)
-  remainingB    Int      @default(0)
-  pointsA       Int      @default(0)
-  pointsB       Int      @default(0)
-  dartsA        Int      @default(0)
-  dartsB        Int      @default(0)
-  coAttemptsA   Int      @default(0)               // checkout attempts
-  coAttemptsB   Int      @default(0)
-  coHitsA       Int      @default(0)
-  coHitsB       Int      @default(0)
-
-  match         Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@index([matchId, number])
+  id        String   @id @default(cuid())
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  number    Int
+  winner    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
+model Visit {
+  id          String   @id @default(cuid())
+  matchId     String
+  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  legNo       Int
+  turn        String // "A" | "B"
+  player      String // "A" | "B"
+  darts       String // JSON string: [{m:"S"|"D"|"T", v:number}, ...]  (SQLite: TEXT)
+  scoreBefore Int
+  scoreAfter  Int
+  bust        Boolean
+  checkout    Boolean
+  createdAt   DateTime @default(now())
+
+  @@index([matchId, createdAt])
+}

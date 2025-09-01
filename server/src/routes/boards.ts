@@ -1,54 +1,77 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { prisma } from "../db/prisma.js";
-import { maskToken } from "../utils/crypto.js";
-import { saveBoardAll } from "../services/persistence.js";
+// server/src/routes/boards.ts
+import { Router } from "express";
+import { prisma } from "../db/prisma";
+import { maskToken, encryptToken } from "../services/crypto";
+import { seedBoardsFromEnv } from "../services/boardSeed";
 
 const router = Router();
 
-/* Enkel admin-sjekk. Bruker x-admin-key = ADMIN_KEY (eller dev-admin-key). */
-const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  const k = (req.header("x-admin-key") || "").trim();
-  const admin = (process.env.ADMIN_KEY || "dev-admin-key").trim();
-  if (!k || k !== admin) return res.status(401).json({ error: "Unauthorized" });
-  next();
-};
+function requireAdmin(req: any) {
+  const adminKey = req.headers["x-admin-key"];
+  if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+    const e: any = new Error("Unauthorized");
+    e.status = 401;
+    throw e;
+  }
+}
 
-/* GET /boards  -> liste for UI (maskert token) */
-router.get("/", async (_req: Request, res: Response) => {
-  const rows = await prisma.board.findMany({ orderBy: { id: "asc" } });
-
-  // Prøv å fylle ut med årsaklige felter UI var vant til; ukjente felter settes “mykt”.
-  const result = rows.map((r: any) => ({
-    id: r.id,
-    name: r.name ?? r.id,
-    serialNumber: r.serialNumber ?? null,
-    accessTokenMasked: r.accessTokenEnc ? maskToken(r.accessTokenEnc) : null,
-    // Disse er valgfrie – behold hvis modellen din har dem:
-    status: r.status ?? "Ready",
-    phase: r.phase ?? (r.status === "Ready" ? "Throw" : null),
-    lastUpdate: r.updatedAt ?? null,
-    scolia: {
-      serialNumber: r.serialNumber ?? null,
-      configured: !!(r.serialNumber && r.accessTokenEnc),
-    },
-  }));
-
-  res.json(result);
+router.get("/", async (_req, res, next) => {
+  try {
+    const boards = await prisma.board.findMany({ orderBy: { id: "asc" } });
+    const safe = boards.map((b) => ({
+      id: b.id,
+      name: b.name,
+      serialNumber: b.serialNumber,
+      accessTokenMasked: maskToken(b.accessTokenEnc),
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+    }));
+    res.json(safe);
+  } catch (err) { next(err); }
 });
 
-/* POST /boards/save  -> lagre navn/serial/token (krypteres). */
-router.post("/save", requireAdmin, async (req: Request, res: Response) => {
+router.post("/save", async (req, res, next) => {
   try {
-    const { boardId, name, serialNumber, accessToken } = req.body || {};
+    requireAdmin(req);
+    const { boardId, name, serialNumber, accessToken, clearToken } = req.body || {};
     if (!boardId || typeof boardId !== "string") {
-      return res.status(400).json({ error: "boardId mangler." });
+      return res.status(400).json({ error: "Mangler boardId" });
     }
-    const saved = await saveBoardAll({ boardId, name, serialNumber, accessToken });
-    return res.json({ board: saved });
-  } catch (err) {
-    console.error("[POST /boards/save] error", err);
-    return res.status(500).json({ error: "Kunne ikke lagre board." });
-  }
+
+    const data: any = {};
+    if (typeof name === "string") data.name = name.trim();
+    if (typeof serialNumber === "string") data.serialNumber = serialNumber.trim();
+
+    if (clearToken === true) {
+      data.accessTokenEnc = null;
+    } else if (typeof accessToken === "string" && accessToken.trim()) {
+      data.accessTokenEnc = encryptToken(accessToken.trim());
+    }
+
+    const board = await prisma.board.upsert({
+      where: { id: boardId },
+      create: { id: boardId, name: data.name || boardId, serialNumber: data.serialNumber || null, accessTokenEnc: data.accessTokenEnc ?? null },
+      update: data,
+    });
+
+    res.json({
+      ok: true,
+      board: {
+        id: board.id,
+        name: board.name,
+        serialNumber: board.serialNumber,
+        accessTokenMasked: maskToken(board.accessTokenEnc),
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+router.post("/seed-from-env", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const updated = await seedBoardsFromEnv();
+    res.json({ ok: true, updated });
+  } catch (err) { next(err); }
 });
 
 export default router;
