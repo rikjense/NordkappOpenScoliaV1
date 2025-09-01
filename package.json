@@ -1,0 +1,34 @@
+{
+  "name": "dart-system",
+  "private": true,
+  "workspaces": [
+    "server",
+    "simulator",
+    "client-admin",
+    "client-view",
+    "db"
+  ],
+  "scripts": {
+    "build": "npm -ws run build",
+    "dev": "concurrently -n server,admin,view -c cyan,magenta,green \"npm --workspace server run dev\" \"npm --workspace client-admin run dev\" \"npm --workspace client-view run dev\"",
+    "dev:server": "npm --workspace server run dev",
+    "dev:admin": "npm --workspace client-admin run dev",
+    "dev:view": "npm --workspace client-view run dev",
+    "lint": "npm -ws run lint",
+    "typecheck": "npm -ws run typecheck"
+  },
+  "devDependencies": {
+    "@types/estree": "^1.0.8",
+    "@types/node": "^24.3.0",
+    "@types/prop-types": "^15.7.15",
+    "concurrently": "^9.0.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "helmet": "^8.1.0",
+    "node": "^22.19.0",
+    "pino": "^9.9.0",
+    "schema": "^0.2.1",
+    "types": "^0.1.1"
+  }
+}

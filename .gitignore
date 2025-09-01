@@ -1,9 +1,26 @@
+# ============================
+# Node / TypeScript
+# ============================
 **/node_modules/
-dist
-.build
-.env
-*.db
+dist/
+.build/
 *.log
-.vscode
-.idea
+*.db
+
+# ============================
+# Environment & secrets
+# ============================
+.env
 /server/.secrets/
+
+# ============================
+# IDE / Editor
+# ============================
+.vscode/
+.idea/
+
+# ============================
+# OS-filer
+# ============================
+.DS_Store
+Thumbs.db
