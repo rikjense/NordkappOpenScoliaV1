@@ -10,8 +10,8 @@ dist/
 # ============================
 # Environment & secrets
 # ============================
-.env
-/server/.secrets/
+# .env
+# /server/.secrets/
 
 # ============================
 # IDE / Editor
